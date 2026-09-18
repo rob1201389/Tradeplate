@@ -15,6 +15,13 @@
       "when": 1789692629646,
       "tag": "0001_one_open_trip_per_plate",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789703538929,
+      "tag": "0002_plate_expiry_date",
+      "breakpoints": true
     }
   ]
 }

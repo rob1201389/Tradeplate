@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { formatSydney } from "@/lib/time";
+import { formatSydney, expiryStatus } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,7 @@ export default async function Home() {
         <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
           {plates.map((p) => {
             const out = openBy.get(p.id);
+            const expiry = expiryStatus(p.expiryDate);
             return (
               <li key={p.id}>
                 <Link
@@ -68,15 +69,31 @@ export default async function Home() {
                     ) : (
                       <div className="text-xs text-slate-500">In the office</div>
                     )}
+                    {expiry.state === "expired" && (
+                      <div className="mt-0.5 text-xs font-semibold text-red-700">
+                        {expiry.label}
+                      </div>
+                    )}
+                    {expiry.state === "soon" && (
+                      <div className="mt-0.5 text-xs font-semibold text-amber-700">
+                        {expiry.label}
+                      </div>
+                    )}
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      out
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-emerald-100 text-emerald-800"
+                      expiry.state === "expired"
+                        ? "bg-red-100 text-red-800"
+                        : out
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-emerald-100 text-emerald-800"
                     }`}
                   >
-                    {out ? "Out" : "Available"}
+                    {expiry.state === "expired"
+                      ? "Expired"
+                      : out
+                        ? "Out"
+                        : "Available"}
                   </span>
                 </Link>
               </li>

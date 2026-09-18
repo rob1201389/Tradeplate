@@ -4,6 +4,8 @@ import { getDb, schema } from "@/db";
 import { setPlateActive } from "@/app/actions";
 import { plateUrl } from "@/lib/qr";
 import AddPlateForm from "./AddPlateForm";
+import ExpiryCell from "./ExpiryCell";
+import { expiryStatus } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +44,7 @@ export default async function PlatesPage() {
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-2 font-semibold">Plate</th>
+              <th className="px-3 py-2 font-semibold">Expiry</th>
               <th className="px-3 py-2 font-semibold">Scan link</th>
               <th className="px-3 py-2 font-semibold">Notes</th>
               <th className="px-3 py-2 font-semibold">Status</th>
@@ -51,7 +54,7 @@ export default async function PlatesPage() {
           <tbody className="divide-y divide-slate-100">
             {plates.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
                   No plates yet.
                 </td>
               </tr>
@@ -59,6 +62,14 @@ export default async function PlatesPage() {
             {plates.map((p) => (
               <tr key={p.id}>
                 <td className="px-3 py-2 font-bold">{p.plateNumber}</td>
+                <td className="px-3 py-2">
+                  <ExpiryCell
+                    id={p.id}
+                    value={p.expiryDate}
+                    state={expiryStatus(p.expiryDate).state}
+                    label={expiryStatus(p.expiryDate).label}
+                  />
+                </td>
                 <td className="px-3 py-2">
                   <a
                     href={`/p/${p.qrSlug}`}

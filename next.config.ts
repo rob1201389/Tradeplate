@@ -36,7 +36,14 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * Set BASE_PATH when the app is served under a path on an existing site
+ * (e.g. "/members/tradeplate"). Leave it unset for a site of its own.
+ */
+const basePath = process.env.BASE_PATH?.replace(/\/$/, "") || undefined;
+
 const config: NextConfig = {
+  basePath,
   serverExternalPackages: ["postgres"],
   poweredByHeader: false,
   async headers() {

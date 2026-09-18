@@ -2,6 +2,7 @@ import {
   pgTable,
   serial,
   integer,
+  date,
   text,
   timestamp,
   boolean,
@@ -20,6 +21,8 @@ export const plates = pgTable(
     id: serial("id").primaryKey(),
     plateNumber: text("plate_number").notNull(),
     qrSlug: text("qr_slug").notNull(),
+    /** Date the plate's registration expires. Stored as a plain date, no time. */
+    expiryDate: date("expiry_date"),
     active: boolean("active").notNull().default(true),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })

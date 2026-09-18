@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getDb, schema } from "@/db";
 import Shell from "@/components/Shell";
 import TripOutForm from "@/components/TripOutForm";
-import { dateToSydneyWall } from "@/lib/time";
+import { dateToSydneyWall, expiryStatus } from "@/lib/time";
 import { isDriverAuthed } from "@/lib/auth";
 import { org } from "@/lib/org";
 import DriverPinForm from "@/components/DriverPinForm";
@@ -23,7 +23,10 @@ export default async function NewTripPage() {
   const db = getDb();
 
   const available = await db
-    .select({ plateNumber: schema.plates.plateNumber })
+    .select({
+      plateNumber: schema.plates.plateNumber,
+      expiryDate: schema.plates.expiryDate,
+    })
     .from(schema.plates)
     .where(eq(schema.plates.active, true))
     .orderBy(asc(schema.plates.plateNumber));
@@ -35,6 +38,7 @@ export default async function NewTripPage() {
 
   const outNow = new Set(open.map((o) => o.plateNumber));
   const options = available
+    .filter((p) => expiryStatus(p.expiryDate).state !== "expired")
     .map((p) => p.plateNumber)
     .filter((p) => !outNow.has(p));
 
@@ -45,7 +49,7 @@ export default async function NewTripPage() {
     >
       {options.length === 0 ? (
         <p className="text-sm text-slate-600">
-          Every active plate is already signed out.{" "}
+          No plate is available - they are all signed out or expired.{" "}
           <Link href="/" className="font-medium text-brand underline">
             View plates
           </Link>

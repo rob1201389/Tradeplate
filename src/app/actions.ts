@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getDb, schema } from "@/db";
-import { sydneyWallToDate } from "@/lib/time";
+import { sydneyWallToDate, expiryStatus } from "@/lib/time";
 import { str, required, signature, type FieldErrors } from "@/lib/validation";
 import {
   checkDriverPin,
@@ -61,6 +61,17 @@ export async function startTrip(
   if (!plate) return { errors: {}, message: "That plate is not on file." };
   if (!plate.active)
     return { errors: {}, message: `Plate ${plate.plateNumber} is retired.` };
+
+  const expiry = expiryStatus(plate.expiryDate);
+  if (expiry.state === "expired") {
+    return {
+      errors: {},
+      message: `Plate ${plate.plateNumber} expired on ${plate.expiryDate
+        ?.split("-")
+        .reverse()
+        .join("/")}. It cannot be signed out. See the office.`,
+    };
+  }
 
   const [open] = await db
     .select({ id: schema.trips.id })
@@ -258,6 +269,10 @@ export async function addPlate(
     "Plate number",
     30,
   );
+  const expiryDate = str(form, "expiryDate");
+  if (expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate))
+    errors.expiryDate = "Enter a valid date";
+
   if (Object.keys(errors).length > 0) return { errors };
 
   const [existing] = await db
@@ -271,11 +286,27 @@ export async function addPlate(
   await db.insert(schema.plates).values({
     plateNumber,
     qrSlug: newQrSlug(),
+    expiryDate: expiryDate || null,
     notes: str(form, "notes") || null,
   });
 
   revalidatePath("/admin/plates");
   return { errors: {}, message: `Plate ${plateNumber} added.` };
+}
+
+export async function setPlateExpiry(form: FormData) {
+  if (!(await isAuthed())) redirect("/admin/login");
+  const db = getDb();
+  const id = Number(str(form, "id"));
+  const value = str(form, "expiryDate");
+  if (!Number.isInteger(id)) return;
+  if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+  await db
+    .update(schema.plates)
+    .set({ expiryDate: value || null })
+    .where(eq(schema.plates.id, id));
+  revalidatePath("/admin/plates");
+  revalidatePath("/");
 }
 
 export async function setPlateActive(form: FormData) {

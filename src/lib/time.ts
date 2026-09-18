@@ -81,3 +81,41 @@ export function formatDuration(from: Date, to: Date): string {
   if (h === 0) return `${m}m`;
   return `${h}h ${m}m`;
 }
+
+/** Today's date in NSW, as YYYY-MM-DD. */
+export function sydneyToday(): string {
+  return dateToSydneyWall(new Date()).slice(0, 10);
+}
+
+export type ExpiryState = "none" | "ok" | "soon" | "expired";
+
+/**
+ * Trade plate registrations expire. Driving on an expired plate is the thing
+ * that gets a dealer in trouble, so the app treats it as a hard stop rather
+ * than a warning.
+ */
+export function expiryStatus(expiry: string | null | undefined): {
+  state: ExpiryState;
+  days: number | null;
+  label: string;
+} {
+  if (!expiry) return { state: "none", days: null, label: "Not set" };
+
+  const today = sydneyToday();
+  const msPerDay = 86_400_000;
+  const days = Math.round(
+    (Date.parse(expiry + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) /
+      msPerDay,
+  );
+
+  const pretty = expiry.split("-").reverse().join("/");
+  if (days < 0) return { state: "expired", days, label: `Expired ${pretty}` };
+  if (days === 0) return { state: "soon", days, label: `Expires today` };
+  if (days <= 30)
+    return {
+      state: "soon",
+      days,
+      label: `Expires ${pretty} (${days} day${days === 1 ? "" : "s"})`,
+    };
+  return { state: "ok", days, label: pretty };
+}

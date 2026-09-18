@@ -37,6 +37,7 @@ see who had it and when.
 | Field | Required | Notes |
 | --- | --- | --- |
 | Plate number | yes | Set by the QR code, or chosen from a dropdown on manual entry |
+| Plate expiry | n/a | Held against the plate, not the trip. An expired plate cannot be signed out |
 | Date and time out | yes | Defaults to now, NSW time |
 | Batch number | yes | Carried forward from the plate's last trip |
 | Vehicle make | yes | |
@@ -67,19 +68,22 @@ npm install
 npm run db:migrate
 ```
 
-### 2. Add your plates
+### 2. Load your plates
+
+`scripts/plates.csv` holds the current twelve. Edit it to add expiry dates, then:
 
 ```bash
-npm run db:seed -- "1234 TP" "5678 TP"   # add plates
-npm run db:seed                          # list plates and their scan URLs
+npm run db:seed -- --file scripts/plates.csv   # bulk load
+npm run db:seed -- A3285=2027-06-30            # add one with an expiry
+npm run db:seed                                # list plates and scan URLs
 ```
 
 Or add them through `/admin/plates` once the app is running.
 
-### 3. Set the public URL before printing QR codes
+### 3. Set the URL before printing QR codes
 
-`NEXT_PUBLIC_BASE_URL` is baked into every QR code. Get the domain right first,
-or you will be reprinting labels.
+`NEXT_PUBLIC_BASE_URL` and `BASE_PATH` are both baked into every QR code. Get
+them right first, or you will be reprinting labels.
 
 ### 4. Print and fit the labels
 
@@ -93,6 +97,32 @@ its plate.
 npm run dev     # local
 npm run build && npm start   # production
 ```
+
+## Putting it on rsmotocons.com/members/tradeplate
+
+The app is a Node server, not static files, so it cannot be dropped into a
+folder on a normal web host. Two ways to get it onto that path.
+
+**A. Reverse proxy (keeps the URL exactly as asked).** Run the app on its own
+host with `BASE_PATH=/members/tradeplate`, then have rsmotocons.com forward that
+path to it. What you add depends on what the site runs on:
+
+- *Nginx*: `location /members/tradeplate { proxy_pass http://APP_HOST; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; }`
+- *Apache*: `ProxyPass /members/tradeplate http://APP_HOST/members/tradeplate` plus the matching `ProxyPassReverse`, with `mod_proxy` enabled.
+- *Cloudflare in front of the site*: a Worker route on `rsmotocons.com/members/tradeplate*` forwarding to the app.
+- *Vercel hosting rsmotocons.com*: a rewrite in `vercel.json` from `/members/tradeplate/:path*` to the app.
+
+`X-Forwarded-For` matters: without it every record logs the proxy's IP instead
+of the driver's phone.
+
+**B. Subdomain (less to configure).** Point `plates.rsmotocons.com` at the app,
+leave `BASE_PATH` blank, and put a link at /members/tradeplate on the main site.
+Fewer moving parts, and nothing on the main site can break the plate app. The
+URL on the labels is shorter too, which matters when someone has to type it
+because a label got scuffed.
+
+Take B unless the path itself is a requirement. If the main site is WordPress or
+similar shared hosting, B is very likely the only practical option.
 
 ## Where to host it
 
@@ -201,6 +231,10 @@ either side of a daylight saving change stay correct and sortable.
 
 ## Things worth knowing
 
+- **Expired plates are blocked, not just flagged.** A plate past its expiry
+  date cannot be signed out at all, and disappears from the manual entry
+  dropdown. Inside 30 days the driver gets a warning and the office board shows
+  it in amber. Expiry dates are set per plate in `/admin/plates`.
 - **One plate, one open record.** Enforced by a partial unique index in the
   database, not just in code, so two phones signing the same plate out at the
   same moment cannot both succeed.

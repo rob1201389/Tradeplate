@@ -8,8 +8,14 @@ export function baseUrl(): string {
   return "http://localhost:3000";
 }
 
+/** The path the app is mounted at, e.g. "/members/tradeplate" or "". */
+export function basePath(): string {
+  const raw = process.env.NEXT_PUBLIC_BASE_PATH || process.env.BASE_PATH || "";
+  return raw.replace(/\/$/, "");
+}
+
 export function plateUrl(qrSlug: string): string {
-  return `${baseUrl()}/p/${qrSlug}`;
+  return `${baseUrl()}${basePath()}/p/${qrSlug}`;
 }
 
 /** Inline SVG so the print sheet needs no image requests. */

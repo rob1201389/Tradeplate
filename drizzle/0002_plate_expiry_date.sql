@@ -1,0 +1,1 @@
+ALTER TABLE "plates" ADD COLUMN "expiry_date" date;

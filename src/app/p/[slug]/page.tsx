@@ -5,7 +5,12 @@ import { getDb, schema } from "@/db";
 import Shell from "@/components/Shell";
 import TripOutForm from "@/components/TripOutForm";
 import TripInForm from "@/components/TripInForm";
-import { dateToSydneyWall, formatSydney, formatDuration } from "@/lib/time";
+import {
+  dateToSydneyWall,
+  formatSydney,
+  formatDuration,
+  expiryStatus,
+} from "@/lib/time";
 import { isDriverAuthed } from "@/lib/auth";
 import { org } from "@/lib/org";
 import DriverPinForm from "@/components/DriverPinForm";
@@ -73,6 +78,7 @@ export default async function PlatePage({
     .limit(1);
 
   const now = new Date();
+  const expiry = expiryStatus(plate.expiryDate);
 
   return (
     <>
@@ -81,9 +87,11 @@ export default async function PlatePage({
         subtitle={
           open
             ? `Currently out with ${open.driverName}`
-            : plate.active
-              ? "Available - fill in the details below"
-              : "This plate is retired and cannot be signed out"
+            : !plate.active
+              ? "This plate is retired and cannot be signed out"
+              : expiry.state === "expired"
+                ? "This plate's registration has expired"
+                : "Available - fill in the details below"
         }
       >
         {saved === "out" && (
@@ -93,6 +101,10 @@ export default async function PlatePage({
         )}
         {saved === "in" && (
           <Banner tone="ok">Booked back in. Record closed off.</Banner>
+        )}
+
+        {expiry.state === "soon" && (
+          <Banner tone="warn">{expiry.label}. Tell the office.</Banner>
         )}
 
         {open ? (
@@ -113,7 +125,19 @@ export default async function PlatePage({
               retentionYears={org.retentionYears}
             />
           </>
-        ) : plate.active ? (
+        ) : !plate.active ? (
+          <p className="text-sm text-slate-600">
+            Speak to the office - this plate has been taken out of service.
+          </p>
+        ) : expiry.state === "expired" ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <p className="font-semibold">{expiry.label}.</p>
+            <p className="mt-1">
+              This plate cannot be signed out. Take a different plate and tell
+              the office.
+            </p>
+          </div>
+        ) : (
           <TripOutForm
             plates={[plate.plateNumber]}
             lockedPlate={plate.plateNumber}
@@ -122,10 +146,6 @@ export default async function PlatePage({
             orgName={org.name}
             retentionYears={org.retentionYears}
           />
-        ) : (
-          <p className="text-sm text-slate-600">
-            Speak to the office - this plate has been taken out of service.
-          </p>
         )}
       </Shell>
 
