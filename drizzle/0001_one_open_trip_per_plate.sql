@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "trips_one_open_per_plate_idx" ON "trips" USING btree ("plate_id") WHERE "trips"."in_at" is null;

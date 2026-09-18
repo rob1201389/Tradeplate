@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0f172a;
+  --color-brand: #0b5cab;
+  --color-brand-dark: #08457f;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: #f1f5f9;
+  color: var(--color-ink);
+}
+
+/* Inputs sized so iOS doesn't zoom on focus. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}
