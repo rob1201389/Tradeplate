@@ -15,6 +15,7 @@ Everything in this folder is a drop-in for the site repo.
 | `members/tradeplate/qrcode.min.js` | `members/tradeplate/qrcode.min.js` |
 | `members/index.html` | `members/index.html` (replaces it — adds the live tile) |
 | `_headers.add` | append its contents to the existing `_headers` |
+| `_redirects` | new — keeps `.dev.vars`, `.sql` and `wrangler.toml` from being served |
 
 `schema.sql`, `plates.sql` and `wrangler.toml` stay out of the deployed site —
 they are setup files you run once.
@@ -32,8 +33,8 @@ world. Check the dashboard afterwards and confirm where it actually landed; if
 Oceania is not offered on your plan, `apac` is the next closest. This matters
 because the records hold driver names, licence numbers and signatures.
 
-The command prints a `database_id`. Put it in `wrangler.toml`, and add the same
-binding in the Pages dashboard under **Settings → Functions → D1 database
+The command prints a `database_id`. Put it in `site/wrangler.toml`, and add the
+same binding in the Pages dashboard under **Settings → Functions → D1 database
 bindings**:
 
 - Variable name: `DB`
@@ -41,9 +42,11 @@ bindings**:
 
 ### 2. Create the tables and load the plates
 
+Run these from `site/`, where `wrangler.toml` lives:
+
 ```bash
-npx wrangler d1 execute tradeplate --remote --file=schema.sql
-npx wrangler d1 execute tradeplate --remote --file=plates.sql
+npx wrangler d1 execute tradeplate --remote --file=../setup/schema.sql
+npx wrangler d1 execute tradeplate --remote --file=../setup/plates.sql
 ```
 
 `plates.sql` loads A3178, A3180, A3181, A3182, A3263, A3264, A3265, A3266,
@@ -95,8 +98,7 @@ Reprint the sheet whenever you add a plate.
 ## Running it locally first
 
 ```bash
-cd <the site repo>
-cp /path/to/schema.sql /path/to/plates.sql .
+cd site
 cat > .dev.vars <<'EOF'
 ADMIN_PASSWORD=test-password
 SESSION_SECRET=local-dev-session-secret-0123456789
@@ -106,9 +108,14 @@ PRIVACY_CONTACT_EMAIL=info@rsmotocons.com
 RETENTION_YEARS=5
 EOF
 
-npx wrangler pages dev . --port 8788 --local --d1=DB=local-dev
-npx wrangler d1 execute DB --local --file=schema.sql
-npx wrangler d1 execute DB --local --file=plates.sql
+npx wrangler pages dev . --port 8788
+```
+
+Then in a second terminal, from `site/`:
+
+```bash
+npx wrangler d1 execute DB --local --file=../setup/schema.sql
+npx wrangler d1 execute DB --local --file=../setup/plates.sql
 ```
 
 Then open `http://localhost:8788/members/tradeplate/`.
@@ -128,6 +135,11 @@ Then open `http://localhost:8788/members/tradeplate/`.
   effectively a key and should not leak in a referrer header.
 - **Driver IPs.** Cloudflare supplies `CF-Connecting-IP`, so each entry records
   the phone that made it without any extra configuration.
+- **Files Pages serves by default.** Anything in the deployed folder is public
+  unless something stops it. Checked on a real build: `.dev.vars`, `.sql` files
+  and `wrangler.toml` all return 200. `_redirects` bounces those four to the 404
+  page. Keep the setup files out of the deployed folder regardless — the
+  redirect is the second line of defence, not the first.
 
 ## Costs
 
