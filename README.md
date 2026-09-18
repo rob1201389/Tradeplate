@@ -98,7 +98,20 @@ npm run dev     # local
 npm run build && npm start   # production
 ```
 
-## Putting it on rsmotocons.com/members/tradeplate
+## Deploying to rsmotocons.com
+
+**Use `cloudflare/`.** rsmotocons.com is a static site on Cloudflare Pages, so
+the app ships as a Pages Function plus a D1 database, dropped straight into the
+site repo. It serves from `rsmotocons.com/members/tradeplate`, reuses the site's
+own stylesheet and header, and needs no second host, no reverse proxy and no
+extra hosting bill. `cloudflare/README.md` has the install steps.
+
+That version is the one to deploy. The Next.js app in `src/` is the same
+application built for a Postgres host, kept because it is what the Cloudflare
+version was derived from and because it runs anywhere Node runs. Do not try to
+run both against the same data.
+
+## If you are not on Cloudflare Pages
 
 The app is a Node server, not static files, so it cannot be dropped into a
 folder on a normal web host. Two ways to get it onto that path.

@@ -1,0 +1,14 @@
+# Cloudflare Pages project configuration for rsmotocons.com.
+#
+# The D1 binding is what lets the Function reach the database. Add the same
+# binding in the Pages dashboard (Settings > Functions > D1 bindings) if you
+# deploy by git push rather than by wrangler.
+
+name = "rsmotocons"
+pages_build_output_dir = "."
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tradeplate"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"

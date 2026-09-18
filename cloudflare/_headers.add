@@ -1,0 +1,17 @@
+# Append these to the site's existing _headers file.
+# The /members/* block already covers noindex and no-store; this adds the
+# stricter caching the plate pages need and keeps signatures out of any cache.
+
+/members/tradeplate/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store, must-revalidate
+  Referrer-Policy: no-referrer
+
+/members/tradeplate/app.js
+  Cache-Control: public, max-age=3600
+
+/members/tradeplate/tradeplate.css
+  Cache-Control: public, max-age=3600
+
+/members/tradeplate/qrcode.min.js
+  Cache-Control: public, max-age=86400
