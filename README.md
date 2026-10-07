@@ -1,5 +1,9 @@
 # Trade Plate Record of Use
 
+> This repo also holds **Car Studio** (`studio/`), a separate app for vehicle
+> listing photos: cut-out, studio backdrops, plate cover, export. See
+> [`studio/README.md`](studio/README.md).
+
 A web app for recording every use of a trade plate. Each plate carries a QR
 code on the back. A driver scans it, fills in the trip, signs, and drives off.
 When the plate comes back they scan the same code and sign it in. The office

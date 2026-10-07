@@ -1,0 +1,38 @@
+{
+  "name": "car-photo-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Car photo studio: background removal, virtual showroom, plate cover, export. Runs on device, on a local server, or hosted.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "start": "node server/index.mjs",
+    "android:sync": "vite build && cap sync android",
+    "icons": "node scripts/icons.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
+    "express": "^5.2.1",
+    "fflate": "^0.8.3",
+    "idb": "^8.0.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.3",
+    "vite-plugin-pwa": "^2.0.0"
+  }
+}
