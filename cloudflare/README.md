@@ -17,6 +17,8 @@ Everything in this folder is a drop-in for the site repo.
 | `_headers.add` | append its contents to the existing `_headers` |
 | `_redirects` | new — keeps `.dev.vars`, `.sql` and `wrangler.toml` from being served |
 
+| `members/studio/` (whole folder) | `members/studio/` (Car Studio, no setup needed) |
+
 `schema.sql`, `plates.sql` and `wrangler.toml` stay out of the deployed site —
 they are setup files you run once.
 
@@ -181,3 +183,24 @@ npx wrangler d1 export tradeplate --remote --output=tradeplate-$(date +%F).sql
 
 A record of use you cannot produce is worse than no system at all, so take an
 export before any change to the plates and keep it somewhere off Cloudflare.
+
+## Car Studio
+
+`members/studio/` is the built Car Studio app (source in `studio/`). It is
+plain static files: no Function, no database, no secrets. Photos stay on each
+phone. Copy the folder in, append `_headers.add`, push. It serves at
+`rsmotocons.com/members/studio/`.
+
+The `/members/studio/*` block in `_headers.add` matters. The site-wide policy
+blocks WebAssembly, `blob:` image previews and the model download, and the app
+does nothing useful without them. The block removes the inherited policy on
+that path only and sets one that allows exactly those, plus the jsDelivr CDN
+for the AI runtime (27 MB, over the 25 MiB Pages file limit, so it can't be
+served from the site) and the NHTSA VIN decoder. Tested against a copy of the
+live headers: model loads, cut-out runs, previews show.
+
+From the hosted site, processing runs on the phone. Pointing it at a server on
+the office network won't work from an https page; use the server's own address
+for that.
+
+Rebuild after changing the app: `cd studio && npm run build:cloudflare`.

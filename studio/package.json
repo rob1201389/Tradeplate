@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "start": "node server/index.mjs",
     "android:sync": "vite build && cap sync android",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "build:cloudflare": "npm run build && node scripts/cloudflare.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",

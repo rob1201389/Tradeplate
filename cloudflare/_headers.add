@@ -15,3 +15,19 @@
 
 /members/tradeplate/qrcode.min.js
   Cache-Control: public, max-age=86400
+
+# Car Studio. The site-wide policy blocks WebAssembly, blob: previews and the
+# model download, so this path detaches it ("! " removes the inherited header)
+# and sets its own. Still no inline scripts, no third-party scripts except the
+# pinned AI runtime on jsDelivr.
+/members/studio/*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' data: blob: https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://vpic.nhtsa.dot.gov; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  ! Permissions-Policy
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=()
+  ! Cache-Control
+  Cache-Control: no-cache
+
+/members/studio/assets/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
