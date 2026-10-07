@@ -1,12 +1,12 @@
 // Builds the drop-in for the Cloudflare Pages site: copies dist/ to
-// ../cloudflare/members/studio/ without the 27 MB AI runtime, which is over the
+// ../cloudflare/photoai/ without the 27 MB AI runtime, which is over the
 // Pages 25 MiB per-file limit. Transformers.js fetches that runtime from the
 // jsDelivr CDN instead (its default), so the local copy is never used.
 import { cpSync, readdirSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 
 const dist = "dist";
-const out = "../cloudflare/members/studio";
+const out = "../cloudflare/photoai";
 const LIMIT = 25 * 1024 * 1024;
 
 for (const f of readdirSync(path.join(dist, "assets"))) {

@@ -17,7 +17,7 @@ Everything in this folder is a drop-in for the site repo.
 | `_headers.add` | append its contents to the existing `_headers` |
 | `_redirects` | new — keeps `.dev.vars`, `.sql` and `wrangler.toml` from being served |
 
-| `members/studio/` (whole folder) | `members/studio/` (Car Studio, no setup needed) |
+| `photoai/` (whole folder) | `photoai/` (Car Studio, no setup needed) |
 
 `schema.sql`, `plates.sql` and `wrangler.toml` stay out of the deployed site —
 they are setup files you run once.
@@ -186,12 +186,12 @@ export before any change to the plates and keep it somewhere off Cloudflare.
 
 ## Car Studio
 
-`members/studio/` is the built Car Studio app (source in `studio/`). It is
-plain static files: no Function, no database, no secrets. Photos stay on each
+`photoai/` is the built Car Studio app (source in `studio/`). It is
+plain static files: no Function, no database, no secrets, no API keys. Photos stay on each
 phone. Copy the folder in, append `_headers.add`, push. It serves at
-`rsmotocons.com/members/studio/`.
+`rsmotocons.com/photoai/`.
 
-The `/members/studio/*` block in `_headers.add` matters. The site-wide policy
+The `/photoai/*` block in `_headers.add` matters. The site-wide policy
 blocks WebAssembly, `blob:` image previews and the model download, and the app
 does nothing useful without them. The block removes the inherited policy on
 that path only and sets one that allows exactly those, plus the jsDelivr CDN
