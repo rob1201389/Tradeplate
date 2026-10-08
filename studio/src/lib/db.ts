@@ -83,6 +83,8 @@ export const DEFAULT_SETTINGS: Settings = {
   engine: "auto",
   serverUrl: "",
   serverKey: "",
+  aiKey: "",
+  aiUrl: "",
   outputWidth: 1920,
   aspect: "4:3",
   jpegQuality: 0.88,

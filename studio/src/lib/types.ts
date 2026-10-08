@@ -37,6 +37,14 @@ export interface EditSettings {
   level?: boolean;
   /** Manual rotation in degrees, on top of auto-level. */
   rotate?: number;
+  /** 0-1. Tones down hotspots on paint and glass. */
+  glare?: number;
+  /** Window outlines, each a list of corners as fractions of the source image. */
+  glass?: Point[][];
+  /** 0-1. Darkens and evens out the marked windows. */
+  glassTint?: number;
+  /** Use the AI-cleaned windows (only inside the outlines). */
+  glassAi?: boolean;
 }
 
 export type PhotoStatus = "new" | "processing" | "done" | "error";
@@ -52,6 +60,10 @@ export interface Photo {
   edit: EditSettings;
   output?: Blob;
   thumb?: Blob;
+  /** AI-cleaned version of the photo; only its window pixels are ever used. */
+  glassFix?: Blob;
+  /** The window outlines glassFix was made for, so a change invalidates it. */
+  glassFixFor?: string;
   status: PhotoStatus;
   error?: string;
   updatedAt: number;
@@ -74,6 +86,10 @@ export interface Settings {
   serverUrl: string;
   /** Matches API_KEY on a server exposed to the internet. */
   serverKey: string;
+  /** Access key for the AI glass clean-up service (set on the server). */
+  aiKey: string;
+  /** Where the AI glass service lives. Blank = this site. */
+  aiUrl: string;
   outputWidth: number;
   aspect: Aspect;
   jpegQuality: number;

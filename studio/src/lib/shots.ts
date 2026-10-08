@@ -10,12 +10,12 @@ export interface ShotDef {
 
 // Standard listing order. Classifieds use the first photo as the hero, so front 3/4 leads.
 export const SHOTS: ShotDef[] = [
-  { id: "front-34", label: "Front 3/4", hint: "Front corner, about 45°. Camera at headlight height, whole car in frame with a little space around it.", exterior: true, plate: true },
-  { id: "side", label: "Side profile", hint: "Square to the middle of the car, camera at door-handle height. Wheels straight.", exterior: true, plate: false },
-  { id: "rear-34", label: "Rear 3/4", hint: "Opposite rear corner, about 45°, tail-light height.", exterior: true, plate: true },
-  { id: "rear", label: "Rear", hint: "Dead centre behind the car, tail-light height.", exterior: true, plate: true },
-  { id: "front", label: "Front", hint: "Dead centre in front, headlight height.", exterior: true, plate: true },
-  { id: "other-side", label: "Other side", hint: "Square to the other side.", exterior: true, plate: false },
+  { id: "front-34", label: "Front 3/4", hint: "Front corner, about 45°. Camera at headlight height, whole car in frame with a little space around it. Polariser on: rotate it until the glass clears.", exterior: true, plate: true },
+  { id: "side", label: "Side profile", hint: "Square to the middle of the car, camera at door-handle height. Wheels straight. Polariser on: rotate it until the glass clears.", exterior: true, plate: false },
+  { id: "rear-34", label: "Rear 3/4", hint: "Opposite rear corner, about 45°, tail-light height. Polariser on: rotate it until the glass clears.", exterior: true, plate: true },
+  { id: "rear", label: "Rear", hint: "Dead centre behind the car, tail-light height. Polariser on: rotate it until the glass clears.", exterior: true, plate: true },
+  { id: "front", label: "Front", hint: "Dead centre in front, headlight height. Polariser on: rotate it until the glass clears.", exterior: true, plate: true },
+  { id: "other-side", label: "Other side", hint: "Square to the other side. Polariser on: rotate it until the glass clears.", exterior: true, plate: false },
   { id: "dash", label: "Dashboard", hint: "From the back seat between the front seats, or the open driver's door. Ignition on.", exterior: false, plate: false },
   { id: "odometer", label: "Odometer", hint: "Ignition on, fill the frame with the cluster. Avoid glare.", exterior: false, plate: false },
   { id: "front-seats", label: "Front seats", hint: "Driver's door open, shoot across both seats.", exterior: false, plate: false },

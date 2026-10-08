@@ -49,6 +49,15 @@ no accounts and no cloud database. Export gets the files out.
 - **Number plate**: drag four corners onto the plate, then cover it with a
   panel warped into the right perspective (your text and colours, or your own
   artwork) or pixelate it. Placement is manual for now.
+- **Glare and glass**: "Reduce glare" tones down sharp hotspots on paint and
+  glass (it compares each pixel with its surroundings, so a white car stays
+  white; areas blown to pure white can't be recovered). "Mark windows" takes a
+  tap on each window corner; "Darken glass" then smokes and evens out those
+  windows on the phone. "AI clean glass" sends the photo and window outline to
+  Stability AI's inpaint service (about US$0.03-0.04 a photo) and only pixels
+  inside the outlines are taken from the result, so paint, and any damage on
+  it, stays as photographed. The original is always kept. Exterior shot hints
+  carry a polarising-filter reminder, which fixes most glass glare at capture.
 - **Enhance**: luminance levels and gamma from the car's own pixels, slight
   saturation lift. One curve for all channels so paint colour doesn't shift.
 - **Logo**: load it from the vehicle screen or Settings; top-right by default
@@ -84,6 +93,8 @@ Settings on the server (environment variables):
 | `CORS_ORIGIN` | `*` | Lock to your hosted app's origin if you host both |
 | `MODEL_DTYPE` | fp32 | `fp16` uses less memory, slower on most CPUs |
 | `MAX_UPLOAD_MB` | 25 | |
+| `STABILITY_API_KEY` | none | Turns on AI glass clean-up (`POST /api/glass`) |
+| `PHOTOAI_KEY` | none | Access key phones must send for AI glass. Set it if the server is reachable from outside |
 
 Docker:
 

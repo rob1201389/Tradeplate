@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { aiCleanGlass, glassKey } from "../lib/glass";
 import { BackdropThumb, FileButton, Header, Segmented, Toggle, useToast } from "../components";
 import { go, useBlobUrl, useLive } from "../hooks";
 import { allBackdrops } from "../lib/backgrounds";
@@ -54,6 +55,84 @@ function PlateEditor({ src, quad, onChange }: { src: Blob; quad: Point[]; onChan
   );
 }
 
+/**
+ * Mark windows: tap each corner of a window, then "Finish window". Drag any
+ * corner to adjust. Outlines are shared by Darken glass and AI clean-up.
+ */
+function GlassEditor({ src, polys, onChange, onDone }: { src: Blob; polys: Point[][]; onChange: (p: Point[][]) => void; onDone: () => void }) {
+  const url = useBlobUrl(src);
+  const box = useRef<HTMLDivElement>(null);
+  const [cur, setCur] = useState<Point[]>([]);
+  const drag = useRef<{ poly: number; pt: number } | null>(null);
+  const moved = useRef(false);
+
+  const toNorm = (e: React.PointerEvent): Point => {
+    const r = box.current!.getBoundingClientRect();
+    return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+  };
+  const startDrag = (poly: number, pt: number) => (e: React.PointerEvent) => {
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture(e.pointerId);
+    drag.current = { poly, pt };
+    moved.current = false;
+  };
+  const move = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    moved.current = true;
+    const p = toNorm(e);
+    if (d.poly < 0) setCur(cur.map((q, i) => (i === d.pt ? p : q)));
+    else onChange(polys.map((poly, i) => (i === d.poly ? poly.map((q, j) => (j === d.pt ? p : q)) : poly)));
+  };
+  const up = (e: React.PointerEvent) => {
+    if (!drag.current && !moved.current && e.type === "pointerup") setCur([...cur, toNorm(e)]);
+    drag.current = null;
+    moved.current = false;
+  };
+  const finish = () => {
+    if (cur.length >= 3) onChange([...polys, cur]);
+    setCur([]);
+  };
+  const path = (poly: Point[]) => poly.map((p) => p.join(",")).join(" ");
+
+  return (
+    <>
+      <div className="plate-ed glass-ed" ref={box} onPointerMove={move} onPointerUp={up}>
+        {url && <img src={url} alt="" draggable={false} />}
+        <svg viewBox="0 0 1 1" preserveAspectRatio="none">
+          {polys.map((poly, i) => (
+            <polygon key={i} points={path(poly)} />
+          ))}
+          {cur.length > 1 && <polyline points={path(cur)} />}
+        </svg>
+        {polys.map((poly, i) =>
+          poly.map(([x, y], j) => <span key={`${i}-${j}`} className="handle small" style={{ left: `${x * 100}%`, top: `${y * 100}%` }} onPointerDown={startDrag(i, j)} />),
+        )}
+        {cur.map(([x, y], j) => (
+          <span key={`c-${j}`} className="handle small cur" style={{ left: `${x * 100}%`, top: `${y * 100}%` }} onPointerDown={startDrag(-1, j)} />
+        ))}
+      </div>
+      <p className="muted small">
+        Tap each corner of a window, then Finish window. Do every window you can see, including the rear glass. Drag a corner to adjust.
+      </p>
+      <div className="row wrap">
+        <button className="btn small primary" disabled={cur.length < 3} onClick={finish}>
+          Finish window
+        </button>
+        <button className="btn small" disabled={!cur.length} onClick={() => setCur(cur.slice(0, -1))}>
+          Undo corner
+        </button>
+        <button className="btn small" disabled={!polys.length} onClick={() => onChange(polys.slice(0, -1))}>
+          Remove last window
+        </button>
+        <button className="btn small primary" onClick={() => { finish(); onDone(); }}>
+          Done ({polys.length + (cur.length >= 3 ? 1 : 0)} window{polys.length + (cur.length >= 3 ? 1 : 0) === 1 ? "" : "s"})
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function Editor({ vehicleId, photoId }: { vehicleId: string; photoId: string }) {
   const data = useLive(async () => {
     const [v, photos, settings, backdrops] = await Promise.all([getVehicle(vehicleId), listPhotos(vehicleId), getSettings(), allBackdrops()]);
@@ -62,6 +141,8 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
   const [edit, setEdit] = useState<EditSettings>();
   const [prep, setPrep] = useState<Prepared>();
   const [plateMode, setPlateMode] = useState(false);
+  const [glassMode, setGlassMode] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string>();
   const [toastEl, toast] = useToast();
@@ -79,14 +160,14 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
   useEffect(() => {
     if (!photo) return;
     let alive = true;
-    prepare(photo.original, photo.mask, PREVIEW_EDGE).then((p) => alive && setPrep(p));
+    prepare(photo.original, photo.mask, PREVIEW_EDGE, { fix: photo.glassFix, forKey: photo.glassFixFor }).then((p) => alive && setPrep(p));
     return () => {
       alive = false;
     };
-  }, [photo?.original, photo?.mask]);
+  }, [photo?.original, photo?.mask, photo?.glassFix]);
 
   useEffect(() => {
-    if (!prep || !edit || !data || plateMode) return;
+    if (!prep || !edit || !data || plateMode || glassMode) return;
     let alive = true;
     const t = setTimeout(async () => {
       try {
@@ -105,7 +186,7 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
       alive = false;
       clearTimeout(t);
     };
-  }, [prep, edit, data?.settings, plateMode]);
+  }, [prep, edit, data?.settings, plateMode, glassMode]);
 
   const index = useMemo(() => data?.photos.findIndex((p) => p.id === photoId) ?? -1, [data, photoId]);
   if (!data || !photo || !edit) return null;
@@ -169,7 +250,9 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
       />
       <main className="ed-main">
         <div className="stage">
-          {plateMode && edit.plateQuad ? (
+          {glassMode ? (
+            <GlassEditor src={photo.original} polys={edit.glass ?? []} onChange={(g) => upd({ glass: g })} onDone={() => setGlassMode(false)} />
+          ) : plateMode && edit.plateQuad ? (
             <PlateEditor src={photo.original} quad={edit.plateQuad} onChange={(q) => upd({ plateQuad: q })} />
           ) : (
             <canvas ref={canvas} className="preview" />
@@ -180,7 +263,9 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
         </div>
 
         <div className="controls">
-          {plateMode ? (
+          {glassMode ? (
+            <p className="muted">Marking windows. Finish with Done under the photo.</p>
+          ) : plateMode ? (
             <>
               <p className="muted">Drag the corners onto the plate's corners. Drag inside the box to move it.</p>
               <button className="btn primary block" onClick={() => setPlateMode(false)}>
@@ -225,6 +310,52 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
                   </div>
                 </>
               )}
+              <div className="field">
+                <span>Glare and glass</span>
+                <label className="slider">
+                  Reduce glare
+                  <input type="range" min={0} max={1} step={0.05} value={edit.glare ?? 0} onChange={(e) => upd({ glare: +e.target.value })} />
+                </label>
+                <button className="btn small" onClick={() => setGlassMode(true)}>
+                  {edit.glass?.length ? `Edit windows (${edit.glass.length})` : "Mark windows"}
+                </button>
+                {!!edit.glass?.length && (
+                  <>
+                    <label className="slider">
+                      Darken glass
+                      <input type="range" min={0} max={1} step={0.05} value={edit.glassTint ?? 0} onChange={(e) => upd({ glassTint: +e.target.value })} />
+                    </label>
+                    <div className="row wrap">
+                      <button
+                        className="btn small"
+                        disabled={aiBusy}
+                        onClick={async () => {
+                          setAiBusy(true);
+                          try {
+                            const fix = await aiCleanGlass(photo.original, edit.glass!, settings);
+                            const next = { ...photo, edit: { ...edit, glassAi: true }, glassFix: fix, glassFixFor: glassKey(edit.glass) };
+                            await putPhoto(next);
+                            setEdit(next.edit);
+                            // Render now so the saved photo matches what's on screen.
+                            await renderAndStore(next);
+                            toast("Windows cleaned. Only the glass was changed; the paint is as shot.");
+                          } catch (e) {
+                            toast((e as Error).message);
+                          } finally {
+                            setAiBusy(false);
+                          }
+                        }}
+                      >
+                        {aiBusy ? "Cleaning glass…" : photo.glassFix && photo.glassFixFor === glassKey(edit.glass) ? "Redo AI glass" : "AI clean glass"}
+                      </button>
+                      {photo.glassFix && photo.glassFixFor === glassKey(edit.glass) && (
+                        <Toggle label="Use AI glass" checked={!!edit.glassAi} onChange={(b) => upd({ glassAi: b })} />
+                      )}
+                    </div>
+                    {photo.glassFix && photo.glassFixFor !== glassKey(edit.glass) && <small className="muted">Windows changed since the AI clean-up; run it again to use it.</small>}
+                  </>
+                )}
+              </div>
               <div className="field">
                 <span>Straighten</span>
                 {edit.removeBg && (

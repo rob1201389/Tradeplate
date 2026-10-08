@@ -133,6 +133,23 @@ export default function SettingsPage() {
         </section>
 
         <section className="card">
+          <h2>AI glass clean-up</h2>
+          <p className="muted small">
+            Repaints only the windows you mark, through a paid image service (about US$0.03-0.04 a photo). The service key lives on the server; the
+            access key below just lets this phone use it. Paint is never sent back changed: only pixels inside the window outlines are used, and the
+            original photo is always kept.
+          </p>
+          <label>
+            Access key
+            <input type="password" value={s.aiKey} onChange={(e) => upd({ aiKey: e.target.value })} autoComplete="off" />
+          </label>
+          <label>
+            Service address (leave blank on the website)
+            <input placeholder="https://rsmotocons.com/photoai" value={s.aiUrl} onChange={(e) => upd({ aiUrl: e.target.value })} inputMode="url" />
+          </label>
+        </section>
+
+        <section className="card">
           <h2>Output</h2>
           <div className="field">
             <span>Shape</span>

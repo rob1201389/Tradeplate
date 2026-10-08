@@ -2,6 +2,7 @@
 import { getBackdrop, renderBackdrop } from "./backgrounds";
 import { decode, drawCover, makeCanvas, supportsFilter, type Canvas, type Ctx } from "./canvas";
 import { pixelate, plateArt, warpOnto } from "./plate";
+import { glassKey, pasteGlass, reduceGlare, tintGlass } from "./glass";
 import type { EditSettings, Settings } from "./types";
 
 export interface BBox { x: number; y: number; w: number; h: number; bottom: number }
@@ -14,6 +15,9 @@ export interface Prepared {
   lut: Uint8Array;
   /** Degrees to rotate so the front and rear tyres sit level. 0 if unsure. */
   levelAngle: number;
+  /** AI-cleaned photo at src size, and the window outlines it was made for. */
+  glassFix: Canvas | null;
+  glassFixFor?: string;
 }
 
 export const ASPECTS = { "4:3": 4 / 3, "3:2": 3 / 2, "16:9": 16 / 9, "1:1": 1 } as const;
@@ -91,11 +95,17 @@ function buildLut(src: Canvas, alpha: Uint8Array | null): Uint8Array {
   return lut;
 }
 
-export async function prepare(original: Blob, mask: Blob | undefined, maxEdge: number): Promise<Prepared> {
+export async function prepare(original: Blob, mask: Blob | undefined, maxEdge: number, glass?: { fix?: Blob; forKey?: string }): Promise<Prepared> {
   const src = await decode(original, maxEdge);
+  let glassFix: Canvas | null = null;
+  if (glass?.fix) {
+    const [c, ctx] = makeCanvas(src.width, src.height);
+    ctx.drawImage(await decode(glass.fix, maxEdge), 0, 0, src.width, src.height);
+    glassFix = c;
+  }
   const alpha = mask ? await maskAlpha(mask, src.width, src.height) : null;
   const bbox = alpha ? findBBox(alpha, src.width, src.height) : null;
-  return { src, alpha, bbox, lut: buildLut(src, alpha), levelAngle: alpha && bbox ? levelAngle(alpha, src.width, bbox) : 0 };
+  return { src, alpha, bbox, lut: buildLut(src, alpha), levelAngle: alpha && bbox ? levelAngle(alpha, src.width, bbox) : 0, glassFix, glassFixFor: glass?.forKey };
 }
 
 /**
@@ -193,7 +203,12 @@ export async function compose(prep: Prepared, edit: EditSettings, s: Settings, W
     if (edit.plateMode === "cover") warpOnto(wctx, await plateArt(s), quad);
     else pixelate(wctx, src, quad);
   }
+  const polys = edit.glass ?? [];
+  // AI windows only count if they were made for the outlines as they are now.
+  if (edit.glassAi && prep.glassFix && polys.length && prep.glassFixFor === glassKey(polys)) pasteGlass(wctx, work.width, work.height, prep.glassFix, polys);
   if (edit.enhance) enhance(wctx, work.width, work.height, prep.lut);
+  reduceGlare(wctx, work.width, work.height, edit.glare ?? 0, edit.removeBg ? prep.alpha : null);
+  tintGlass(wctx, work.width, work.height, polys, edit.glassTint ?? 0);
 
   const [out, ctx] = makeCanvas(W, H);
 

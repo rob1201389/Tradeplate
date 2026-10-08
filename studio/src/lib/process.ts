@@ -68,7 +68,7 @@ export async function processPhoto(id: string) {
       // A close-up (mirror, wheel, badge) in an exterior slot: show it as shot, don't stage it.
       if (!(await looksLikeWholeCar(mask))) edit = { ...edit, removeBg: false };
     }
-    const rendered = await render(start.original, mask, edit);
+    const rendered = await render(start.original, mask, edit, start);
     const latest = await getPhoto(id);
     if (!latest) return;
     // Retaken while this ran (blobs come back as new objects on every read, so compare contents).
@@ -89,9 +89,9 @@ export async function processPhoto(id: string) {
   }
 }
 
-async function render(original: Blob, mask: Blob | undefined, edit: Photo["edit"]) {
+async function render(original: Blob, mask: Blob | undefined, edit: Photo["edit"], p: Pick<Photo, "glassFix" | "glassFixFor">) {
   const s = await getSettings();
-  const prep = await prepare(original, mask, WORK_EDGE);
+  const prep = await prepare(original, mask, WORK_EDGE, { fix: p.glassFix, forKey: p.glassFixFor });
   const { W, H } = outputSize(s);
   const output = await toJpeg(await compose(prep, edit, s, W, H), s.jpegQuality);
   return { output, thumb: await thumbnail(output) };
@@ -99,7 +99,7 @@ async function render(original: Blob, mask: Blob | undefined, edit: Photo["edit"
 
 /** Saves an edit made in the editor and renders it straight away. */
 export async function renderAndStore(p: Photo) {
-  const rendered = await render(p.original, p.mask, p.edit);
+  const rendered = await render(p.original, p.mask, p.edit, p);
   const latest = (await getPhoto(p.id)) ?? p;
   await putPhoto({ ...latest, edit: p.edit, mask: latest.mask ?? p.mask, ...rendered, status: "done", error: undefined });
 }

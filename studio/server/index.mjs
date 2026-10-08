@@ -51,12 +51,12 @@ app.disable("x-powered-by");
 
 app.use("/api", (req, res, next) => {
   res.set("Access-Control-Allow-Origin", CORS);
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Photoai-Key");
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   // Lets an https page or the Android app reach this server on a private address.
   res.set("Access-Control-Allow-Private-Network", "true");
   if (req.method === "OPTIONS") return res.sendStatus(204);
-  if (API_KEY && req.path !== "/health" && req.get("Authorization") !== `Bearer ${API_KEY}`) return res.status(401).send("Missing or wrong API key");
+  if (API_KEY && req.path !== "/health" && req.path !== "/glass" && req.get("Authorization") !== `Bearer ${API_KEY}`) return res.status(401).send("Missing or wrong API key");
   next();
 });
 
@@ -79,6 +79,43 @@ app.post("/api/mask", express.raw({ type: "image/*", limit: `${MAX_MB}mb` }), as
   } catch (e) {
     console.error(e);
     res.status(500).send(e.message || "Processing failed");
+  }
+});
+
+// AI glass clean-up: repaints only the masked windows via Stability AI's
+// inpaint service. The provider key stays on this server.
+//   STABILITY_API_KEY  the provider key (required for this route)
+//   PHOTOAI_KEY        access key phones must send (recommended if exposed)
+export const GLASS_PROMPT =
+  "clean dark tinted automotive window glass, smooth even soft reflection of a bright photo studio, no scenery, photorealistic, sharp";
+export const GLASS_NEGATIVE = "trees, sky, clouds, buildings, people, person, text, logo, watermark, distorted, blurry, extra objects";
+
+app.post("/api/glass", express.raw({ type: "multipart/form-data", limit: `${MAX_MB}mb` }), async (req, res) => {
+  res.set("Access-Control-Allow-Origin", CORS);
+  if (!process.env.STABILITY_API_KEY) return res.status(503).send("AI glass is not configured (STABILITY_API_KEY).");
+  if (process.env.PHOTOAI_KEY && req.get("X-Photoai-Key") !== process.env.PHOTOAI_KEY) return res.status(401).send("Wrong access key");
+  try {
+    // Let undici parse the multipart body.
+    const form = await new Response(req.body, { headers: { "content-type": req.get("content-type") } }).formData();
+    const image = form.get("image"), mask = form.get("mask");
+    if (!(image instanceof Blob) || !(mask instanceof Blob)) return res.status(400).send("Send image and mask");
+    const out = new FormData();
+    out.append("image", image, "image.jpg");
+    out.append("mask", mask, "mask.png");
+    out.append("prompt", GLASS_PROMPT);
+    out.append("negative_prompt", GLASS_NEGATIVE);
+    out.append("grow_mask", "4");
+    out.append("output_format", "jpeg");
+    const r = await fetch(process.env.STABILITY_URL || "https://api.stability.ai/v2beta/stable-image/edit/inpaint", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.STABILITY_API_KEY}`, Accept: "image/*" },
+      body: out,
+    });
+    if (!r.ok) return res.status(502).send(`Provider ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    res.type(r.headers.get("content-type") || "image/jpeg").send(Buffer.from(await r.arrayBuffer()));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send(e.message || "AI glass failed");
   }
 });
 

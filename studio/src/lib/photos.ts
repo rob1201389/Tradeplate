@@ -22,6 +22,10 @@ export function defaultEdit(slot: string, s: Settings, v?: Vehicle): EditSetting
     watermark: !!s.logo && (v?.look?.watermark ?? s.watermarkDefault),
     level: LEVEL_SHOTS.has(slot),
     rotate: 0,
+    glare: exterior ? 0.5 : 0.3,
+    glass: [],
+    glassTint: 0,
+    glassAi: false,
   };
 }
 
