@@ -2,6 +2,7 @@ import { getSettings, listPhotos, putPhoto, uid } from "./db";
 import { enqueue } from "./process";
 import { SHOTS, shotDef } from "./shots";
 import { thumbnail } from "./canvas";
+import { BUILTIN } from "./backgrounds";
 import type { EditSettings, Photo, Settings } from "./types";
 
 export function defaultEdit(slot: string, s: Settings): EditSettings {
@@ -13,7 +14,7 @@ export function defaultEdit(slot: string, s: Settings): EditSettings {
     scale: 1,
     offsetY: 0,
     shadow: true,
-    reflection: false,
+    reflection: BUILTIN.find((b) => b.id === s.defaultBackground)?.glossy ?? false,
     enhance: true,
     plateMode: def?.plate ? s.defaultPlateMode : "none",
     plateQuad: null,

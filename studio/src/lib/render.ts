@@ -1,5 +1,5 @@
 // Turns a photo plus its mask and edit settings into the finished image.
-import { renderBackdrop } from "./backgrounds";
+import { getBackdrop, renderBackdrop } from "./backgrounds";
 import { decode, drawCover, makeCanvas, supportsFilter, type Canvas, type Ctx } from "./canvas";
 import { pixelate, plateArt, warpOnto } from "./plate";
 import type { EditSettings, Settings } from "./types";
@@ -146,63 +146,153 @@ export async function compose(prep: Prepared, edit: EditSettings, s: Settings, W
   for (let i = 0, p = 3; i < prep.alpha.length; i++, p += 4) img.data[p] = prep.alpha[i];
   wctx.putImageData(img, 0, 0);
 
-  const { canvas: bg, bd } = await renderBackdrop(edit.background, W, H);
-  ctx.drawImage(bg, 0, 0);
-
+  const { bd } = await getBackdrop(edit.background);
   const b = prep.bbox;
-  const k = Math.min((W * 0.8) / b.w, (H * 0.6) / b.h) * edit.scale;
+  const k = Math.min((W * 0.8) / b.w, (H * 0.64) / b.h) * edit.scale;
   const dw = work.width * k, dh = work.height * k;
   const ground = bd.ground * H + edit.offsetY * H;
   const dx = W / 2 - (b.x + b.w / 2) * k;
   const dy = ground - b.bottom * k;
 
+  // Floor meets wall about halfway up the car, so the far wheels stand on floor.
+  const carTop = dy + b.y * k;
+  const seam = Math.min(ground - H * 0.12, Math.max(H * 0.3, carTop + (ground - carTop) * 0.5)) / H;
+  const { canvas: bg } = await renderBackdrop(edit.background, W, H, seam, ground / H);
+  ctx.drawImage(bg, 0, 0);
+
   // Scale once, reuse for shadow, reflection and the car itself.
   const [car, cctx] = makeCanvas(dw, dh);
   cctx.drawImage(work, 0, 0, dw, dh);
+  const carPx = cctx.getImageData(0, 0, car.width, car.height);
+  const contact = groundLine(carPx);
 
-  if (edit.shadow) {
-    const cx = dx + (b.x + b.w / 2) * k, cw = b.w * k, ch = b.h * k;
-    // Broad ambient shadow.
-    ctx.save();
-    ctx.translate(cx, ground);
-    ctx.scale(1, Math.max(0.04, (ch * 0.09) / (cw * 0.58)));
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, cw * 0.58);
-    g.addColorStop(0, "rgba(0,0,0,0.42)");
-    g.addColorStop(0.6, "rgba(0,0,0,0.18)");
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(-cw, -cw, cw * 2, cw * 2);
-    ctx.restore();
-    // Contact shadow: the silhouette squashed flat under the car.
-    const [sil, sctx] = makeCanvas(dw, dh);
-    sctx.drawImage(car, 0, 0);
-    sctx.globalCompositeOperation = "source-in";
-    sctx.fillStyle = "#000";
-    sctx.fillRect(0, 0, dw, dh);
-    ctx.save();
-    ctx.globalAlpha = 0.55;
-    if (supportsFilter()) ctx.filter = `blur(${Math.max(2, ch * 0.012)}px)`;
-    const sh = ch * 0.05;
-    ctx.drawImage(sil, 0, b.y * k, dw, b.h * k, dx, ground - sh * 0.55, dw, sh);
-    ctx.restore();
+  if (edit.reflection && contact) {
+    const refl = reflect(carPx, contact, b.h * k * 0.5, bd.glossy ? 0.22 : 0.1);
+    ctx.drawImage(refl, dx, dy);
   }
-
-  if (edit.reflection) {
-    const rh = b.h * k * 0.45;
-    const [refl, rctx] = makeCanvas(dw, rh);
-    rctx.setTransform(1, 0, 0, -1, 0, b.bottom * k);
-    rctx.drawImage(car, 0, 0);
-    rctx.setTransform(1, 0, 0, 1, 0, 0);
-    rctx.globalCompositeOperation = "destination-in";
-    const fade = rctx.createLinearGradient(0, 0, 0, rh);
-    fade.addColorStop(0, `rgba(0,0,0,${bd.glossy ? 0.32 : 0.18})`);
-    fade.addColorStop(1, "rgba(0,0,0,0)");
-    rctx.fillStyle = fade;
-    rctx.fillRect(0, 0, dw, rh);
-    ctx.drawImage(refl, dx, ground);
-  }
+  if (edit.shadow && contact) drawShadow(ctx, contact, dx, dy, b.h * k);
 
   ctx.drawImage(car, dx, dy);
   if (edit.watermark) await watermark(ctx, W, H, s);
   return out;
+}
+
+interface Contact {
+  /** Lowest car pixel per column, -1 where the column is empty. */
+  bottom: Float32Array;
+  /** Where each column meets the floor: the lower convex hull of `bottom`. */
+  hull: Float32Array;
+  x0: number;
+  x1: number;
+}
+
+/**
+ * Works out where the car touches the floor. In a 3/4 shot the near and far
+ * wheels meet the ground at different heights, so a single flat line is
+ * wrong. The lower convex hull of the silhouette runs tyre to tyre and gives
+ * the floor line under each column.
+ */
+function groundLine(img: ImageData): Contact | null {
+  const { width: w, height: h, data } = img;
+  const bottom = new Float32Array(w).fill(-1);
+  for (let x = 0; x < w; x++) {
+    for (let y = h - 1; y >= 0; y--) {
+      if (data[(y * w + x) * 4 + 3] > 128) {
+        bottom[x] = y;
+        break;
+      }
+    }
+  }
+  const pts: [number, number][] = [];
+  for (let x = 0; x < w; x++) if (bottom[x] >= 0) pts.push([x, bottom[x]]);
+  if (pts.length < 2) return null;
+  const chain: [number, number][] = [];
+  for (const p of pts) {
+    while (chain.length >= 2) {
+      const [o, a] = [chain[chain.length - 2], chain[chain.length - 1]];
+      if ((a[0] - o[0]) * (p[1] - o[1]) - (a[1] - o[1]) * (p[0] - o[0]) >= 0) chain.pop();
+      else break;
+    }
+    chain.push(p);
+  }
+  const hull = new Float32Array(w).fill(-1);
+  for (let i = 0; i + 1 < chain.length; i++) {
+    const [ax, ay] = chain[i], [bx, by] = chain[i + 1];
+    for (let x = ax; x <= bx; x++) hull[x] = ay + ((by - ay) * (x - ax)) / Math.max(1, bx - ax);
+  }
+  return { bottom, hull, x0: pts[0][0], x1: pts[pts.length - 1][0] };
+}
+
+function drawShadow(ctx: Ctx, c: Contact, dx: number, dy: number, carH: number) {
+  const blur = supportsFilter();
+  const step = Math.max(1, Math.round((c.x1 - c.x0) / 300));
+  const along = (fn: (x: number) => number) => {
+    const pts: [number, number][] = [];
+    for (let x = c.x0; x <= c.x1; x += step) pts.push([dx + x, dy + fn(x)]);
+    pts.push([dx + c.x1, dy + fn(c.x1)]);
+    return pts;
+  };
+
+  // Soft spread on the floor around the footprint.
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = "#000";
+  if (blur) ctx.filter = `blur(${Math.max(4, carH * 0.05)}px)`;
+  const spread = carH * 0.06;
+  ctx.beginPath();
+  along((x) => c.hull[x] - spread * 0.5).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x - spread, y)));
+  along((x) => c.hull[x] + spread).reverse().forEach(([x, y]) => ctx.lineTo(x, y));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Dark floor under the body, between the tyres.
+  ctx.save();
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = "#000";
+  if (blur) ctx.filter = `blur(${Math.max(2, carH * 0.015)}px)`;
+  ctx.beginPath();
+  along((x) => Math.min(c.bottom[x], c.hull[x])).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  along((x) => c.hull[x] + carH * 0.012).reverse().forEach(([x, y]) => ctx.lineTo(x, y));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Tight contact line where rubber meets floor.
+  ctx.save();
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = Math.max(2, carH * 0.012);
+  if (blur) ctx.filter = `blur(${Math.max(1, carH * 0.006)}px)`;
+  ctx.beginPath();
+  along((x) => c.hull[x]).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Mirrors each column about its own floor line and fades it out. */
+function reflect(img: ImageData, c: Contact, depth: number, strength: number): Canvas {
+  const { width: w, height: h, data } = img;
+  const outH = Math.min(h + Math.ceil(depth), Math.ceil(Math.max(...c.hull) + depth) + 1);
+  const [cv, ctx] = makeCanvas(w, outH);
+  const out = ctx.createImageData(w, outH);
+  const d = out.data;
+  for (let x = c.x0; x <= c.x1; x++) {
+    const g = c.hull[x];
+    if (g < 0) continue;
+    const start = Math.ceil(g);
+    for (let y = start; y < Math.min(outH, start + depth); y++) {
+      const sy = Math.round(2 * g - y);
+      if (sy < 0 || sy >= h) continue;
+      const si = (sy * w + x) * 4, di = (y * w + x) * 4;
+      const t = (y - g) / depth;
+      const a = data[si + 3] * strength * (1 - t) * (1 - t);
+      d[di] = data[si];
+      d[di + 1] = data[si + 1];
+      d[di + 2] = data[si + 2];
+      d[di + 3] = a;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  return cv;
 }

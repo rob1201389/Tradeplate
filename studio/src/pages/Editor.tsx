@@ -216,7 +216,7 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
                 <>
                   <div className="bds">
                     {backdrops.map((bd) => (
-                      <BackdropThumb key={bd.id} bd={bd} on={bd.id === edit.background} onPick={() => upd({ background: bd.id, reflection: bd.glossy ? edit.reflection : false })} />
+                      <BackdropThumb key={bd.id} bd={bd} on={bd.id === edit.background} onPick={() => upd({ background: bd.id, reflection: bd.glossy })} />
                     ))}
                   </div>
                   <label className="slider">
