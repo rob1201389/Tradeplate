@@ -23,7 +23,18 @@ export const SHOTS: ShotDef[] = [
   { id: "boot", label: "Boot", hint: "Boot open, from behind at chest height.", exterior: false, plate: false },
   { id: "wheel", label: "Wheel", hint: "Front wheel, logo upright, fill the frame.", exterior: false, plate: false },
   { id: "engine", label: "Engine bay", hint: "Bonnet up, from the front at chest height.", exterior: false, plate: false },
+  { id: "tray", label: "Tray / tub", hint: "Utes and cab chassis: from behind and above, tailgate down.", exterior: false, plate: false },
+  { id: "infotainment", label: "Infotainment", hint: "Screen on, straight on, no glare.", exterior: false, plate: false },
+  { id: "steering", label: "Steering wheel", hint: "From the driver's door, wheel and controls in frame.", exterior: false, plate: false },
+  { id: "third-row", label: "Third row", hint: "Seven-seaters: rear door or tailgate open.", exterior: false, plate: false },
+  { id: "rear-wheel", label: "Rear wheel", hint: "Rear wheel, fill the frame.", exterior: false, plate: false },
+  { id: "spare", label: "Spare wheel", hint: "Spare and tools, boot floor up.", exterior: false, plate: false },
+  { id: "keys", label: "Keys", hint: "All keys on a plain surface.", exterior: false, plate: false },
+  { id: "books", label: "Service books", hint: "Books open at the last service stamp.", exterior: false, plate: false },
 ];
+
+/** Square-on shots where the wheels should sit level in the frame. */
+export const LEVEL_SHOTS = new Set(["side", "other-side", "front", "rear"]);
 
 export const shotDef = (id: string) => SHOTS.find((s) => s.id === id);
 export const shotLabel = (id: string) => shotDef(id)?.label ?? "Extra";

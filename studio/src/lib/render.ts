@@ -12,6 +12,8 @@ export interface Prepared {
   bbox: BBox | null;
   /** Tone curve for "Enhance", worked out from the car pixels only. */
   lut: Uint8Array;
+  /** Degrees to rotate so the front and rear tyres sit level. 0 if unsure. */
+  levelAngle: number;
 }
 
 export const ASPECTS = { "4:3": 4 / 3, "3:2": 3 / 2, "16:9": 16 / 9, "1:1": 1 } as const;
@@ -93,7 +95,66 @@ export async function prepare(original: Blob, mask: Blob | undefined, maxEdge: n
   const src = await decode(original, maxEdge);
   const alpha = mask ? await maskAlpha(mask, src.width, src.height) : null;
   const bbox = alpha ? findBBox(alpha, src.width, src.height) : null;
-  return { src, alpha, bbox, lut: buildLut(src, alpha) };
+  return { src, alpha, bbox, lut: buildLut(src, alpha), levelAngle: alpha && bbox ? levelAngle(alpha, src.width, bbox) : 0 };
+}
+
+/**
+ * Finds the lowest point in the left and right thirds of the car (the tyres)
+ * and returns the rotation that puts them level. Only meaningful for side,
+ * front and rear shots; anything over 6 degrees is treated as perspective,
+ * not camera tilt, and ignored.
+ */
+function levelAngle(a: Uint8Array, w: number, b: BBox): number {
+  const low = (from: number, to: number) => {
+    let best: [number, number] | null = null;
+    for (let x = from; x < to; x++) {
+      for (let y = b.bottom; y >= b.y; y--) {
+        if (a[y * w + x] > 128) {
+          if (!best || y > best[1]) best = [x, y];
+          break;
+        }
+      }
+    }
+    return best;
+  };
+  const L = low(b.x, b.x + Math.round(b.w * 0.35));
+  const R = low(b.x + Math.round(b.w * 0.65), b.x + b.w);
+  if (!L || !R || R[0] - L[0] < b.w * 0.4) return 0;
+  const deg = (Math.atan2(R[1] - L[1], R[0] - L[0]) * 180) / Math.PI;
+  return Math.abs(deg) > 6 ? 0 : -deg;
+}
+
+/** True when the mask looks like a whole car rather than a close-up (mirror, wheel, badge). */
+export async function looksLikeWholeCar(mask: Blob): Promise<boolean> {
+  const bmp = await createImageBitmap(mask);
+  const k = Math.min(1, 400 / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+  bmp.close();
+  const a = await maskAlpha(mask, w, h);
+  const b = findBBox(a, w, h);
+  if (!b) return false;
+  let area = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] > 128) area++;
+  const edge = (v: number, max: number) => v <= 2 || v >= max - 3;
+  const touches = [edge(b.x, w), edge(b.x + b.w, w), edge(b.y, h), edge(b.y + b.h, h)].filter(Boolean).length;
+  return area / (w * h) > 0.08 && b.w / b.h > 0.75 && touches < 2;
+}
+
+/** Rotates a canvas about its centre onto a canvas big enough to hold it. */
+function rotated(c: Canvas, deg: number): Canvas {
+  const r = (deg * Math.PI) / 180, cos = Math.abs(Math.cos(r)), sin = Math.abs(Math.sin(r));
+  const [out, ctx] = makeCanvas(c.width * cos + c.height * sin, c.width * sin + c.height * cos);
+  ctx.translate(out.width / 2, out.height / 2);
+  ctx.rotate(r);
+  ctx.drawImage(c, -c.width / 2, -c.height / 2);
+  return out;
+}
+
+function alphaOf(c: Canvas): Uint8Array {
+  const d = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+  const a = new Uint8Array(c.width * c.height);
+  for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+  return a;
 }
 
 function enhance(ctx: Ctx, w: number, h: number, lut: Uint8Array) {
@@ -113,9 +174,12 @@ function enhance(ctx: Ctx, w: number, h: number, lut: Uint8Array) {
 async function watermark(ctx: Ctx, W: number, H: number, s: Settings) {
   if (!s.logo) return;
   const logo = await decode(s.logo, 1200);
-  const w = W * s.watermarkSize, h = (logo.height / logo.width) * w, m = W * 0.025;
-  ctx.globalAlpha = 0.92;
-  ctx.drawImage(logo, W - w - m, H - h - m, w, h);
+  const w = W * s.watermarkSize, h = (logo.height / logo.width) * w, m = W * 0.03;
+  const pos = s.logoPos ?? "top-right";
+  const x = pos.endsWith("right") ? W - w - m : m;
+  const y = pos.startsWith("top") ? m : H - h - m;
+  ctx.globalAlpha = 0.95;
+  ctx.drawImage(logo, x, y, w, h);
   ctx.globalAlpha = 1;
 }
 
@@ -136,7 +200,18 @@ export async function compose(prep: Prepared, edit: EditSettings, s: Settings, W
   if (!edit.removeBg || !prep.alpha || !prep.bbox) {
     if (edit.removeBg && !prep.alpha) throw new Error("No cut-out yet. Process the photo first.");
     if (edit.removeBg && !prep.bbox) throw new Error("No car found in this photo.");
-    drawCover(ctx, work, W, H);
+    const angle = edit.rotate ?? 0;
+    if (angle) {
+      // Rotate about the centre and zoom just enough that no corner shows.
+      const r = (Math.abs(angle) * Math.PI) / 180;
+      const zoom = Math.cos(r) + Math.sin(r) * Math.max(W / H, H / W);
+      ctx.translate(W / 2, H / 2);
+      ctx.rotate((angle * Math.PI) / 180);
+      ctx.scale(zoom, zoom);
+      ctx.translate(-W / 2, -H / 2);
+      drawCover(ctx, work, W, H);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    } else drawCover(ctx, work, W, H);
     if (edit.watermark) await watermark(ctx, W, H, s);
     return out;
   }
@@ -146,10 +221,18 @@ export async function compose(prep: Prepared, edit: EditSettings, s: Settings, W
   for (let i = 0, p = 3; i < prep.alpha.length; i++, p += 4) img.data[p] = prep.alpha[i];
   wctx.putImageData(img, 0, 0);
 
+  // Straighten: auto-level from the tyres, plus any manual nudge.
+  const angle = (edit.level ? prep.levelAngle : 0) + (edit.rotate ?? 0);
+  let layer: Canvas = work;
+  let b = prep.bbox;
+  if (Math.abs(angle) > 0.05) {
+    layer = rotated(work, angle);
+    b = findBBox(alphaOf(layer), layer.width, layer.height) ?? b;
+  }
+
   const { bd } = await getBackdrop(edit.background);
-  const b = prep.bbox;
   const k = Math.min((W * 0.8) / b.w, (H * 0.64) / b.h) * edit.scale;
-  const dw = work.width * k, dh = work.height * k;
+  const dw = layer.width * k, dh = layer.height * k;
   const ground = bd.ground * H + edit.offsetY * H;
   const dx = W / 2 - (b.x + b.w / 2) * k;
   const dy = ground - b.bottom * k;
@@ -162,7 +245,7 @@ export async function compose(prep: Prepared, edit: EditSettings, s: Settings, W
 
   // Scale once, reuse for shadow, reflection and the car itself.
   const [car, cctx] = makeCanvas(dw, dh);
-  cctx.drawImage(work, 0, 0, dw, dh);
+  cctx.drawImage(layer, 0, 0, dw, dh);
   const carPx = cctx.getImageData(0, 0, car.width, car.height);
   const contact = groundLine(carPx);
 

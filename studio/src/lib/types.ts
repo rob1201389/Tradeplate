@@ -9,6 +9,9 @@ export interface Vehicle {
   model: string;
   variant: string;
   colour: string;
+  rego?: string;
+  /** Backdrop and logo choice for this vehicle's photos. */
+  look?: { background: string; watermark: boolean };
   createdAt: number;
   updatedAt: number;
 }
@@ -30,6 +33,10 @@ export interface EditSettings {
   /** Plate corners TL, TR, BR, BL as fractions of the source image. */
   plateQuad: Point[] | null;
   watermark: boolean;
+  /** Rotate so the wheels sit level (side, front and rear shots). */
+  level?: boolean;
+  /** Manual rotation in degrees, on top of auto-level. */
+  rotate?: number;
 }
 
 export type PhotoStatus = "new" | "processing" | "done" | "error";
@@ -58,6 +65,7 @@ export interface CustomBackground {
   glossy: boolean;
 }
 
+export type LogoPos = "top-right" | "top-left" | "bottom-right" | "bottom-left";
 export type Engine = "auto" | "device" | "server";
 export type Aspect = "4:3" | "3:2" | "16:9" | "1:1";
 
@@ -78,4 +86,5 @@ export interface Settings {
   logo?: Blob;
   watermarkDefault: boolean;
   watermarkSize: number;
+  logoPos: LogoPos;
 }

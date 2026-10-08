@@ -1,38 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileButton, Header, Segmented, Toggle, useToast } from "../components";
+import { BackdropThumb, FileButton, Header, Segmented, Toggle, useToast } from "../components";
 import { go, useBlobUrl, useLive } from "../hooks";
-import { allBackdrops, renderBackdrop, type Backdrop } from "../lib/backgrounds";
+import { allBackdrops } from "../lib/backgrounds";
 import { deletePhoto, getSettings, getVehicle, listPhotos, putPhoto } from "../lib/db";
 import { download, fileNames } from "../lib/export";
-import { replaceOriginal } from "../lib/photos";
+import { moveToSlot, replaceOriginal } from "../lib/photos";
 import { defaultQuad } from "../lib/plate";
 import { enqueue, renderAndStore } from "../lib/process";
 import { compose, outputSize, prepare, type Prepared } from "../lib/render";
-import { shotDef, shotLabel } from "../lib/shots";
+import { LEVEL_SHOTS, SHOTS, shotDef, shotLabel } from "../lib/shots";
 import type { EditSettings, PlateMode, Point } from "../lib/types";
 
 const PREVIEW_EDGE = 1400;
 const PREVIEW_W = 1200;
-
-function BackdropThumb({ bd, on, onPick }: { bd: Backdrop; on: boolean; onPick: () => void }) {
-  const [url, setUrl] = useState<string>();
-  useEffect(() => {
-    let u: string | undefined;
-    renderBackdrop(bd.id, 160, 120).then(async ({ canvas }) => {
-      u = URL.createObjectURL(await canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 }));
-      setUrl(u);
-    });
-    return () => {
-      if (u) URL.revokeObjectURL(u);
-    };
-  }, [bd.id]);
-  return (
-    <button type="button" className={`bd${on ? " on" : ""}`} onClick={onPick} title={bd.name}>
-      {url && <img src={url} alt="" />}
-      <span>{bd.name}</span>
-    </button>
-  );
-}
 
 /** Drag the four corners onto the plate. Works with a finger or a mouse. */
 function PlateEditor({ src, quad, onChange }: { src: Blob; quad: Point[]; onChange: (q: Point[]) => void }) {
@@ -209,6 +189,18 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
             </>
           ) : (
             <>
+              <label>
+                Shot
+                <select value={SHOTS.some((x) => x.id === photo.slot) ? photo.slot : "extra"} onChange={(e) => moveToSlot(photo.id, e.target.value)}>
+                  {SHOTS.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.label}
+                      {x.id !== photo.slot && photos.some((p) => p.slot === x.id) ? " (swap)" : ""}
+                    </option>
+                  ))}
+                  <option value="extra">Extra</option>
+                </select>
+              </label>
               <Toggle label="Cut out and stage" checked={edit.removeBg} onChange={(b) => upd({ removeBg: b })} />
               {needsCut && <p className="muted">Save to cut this car out of its background.</p>}
 
@@ -233,6 +225,22 @@ export default function Editor({ vehicleId, photoId }: { vehicleId: string; phot
                   </div>
                 </>
               )}
+              <div className="field">
+                <span>Straighten</span>
+                {edit.removeBg && (
+                  <Toggle label={`Level the wheels${prep && edit.level && prep.levelAngle ? ` (${prep.levelAngle > 0 ? "+" : ""}${prep.levelAngle.toFixed(1)}°)` : ""}`} checked={!!edit.level} onChange={(b) => upd({ level: b })} />
+                )}
+                <label className="slider">
+                  Tilt {(edit.rotate ?? 0).toFixed(1)}°
+                  <input type="range" min={-10} max={10} step={0.1} value={edit.rotate ?? 0} onChange={(e) => upd({ rotate: +e.target.value })} />
+                </label>
+                {!!edit.rotate && (
+                  <button className="btn small" onClick={() => upd({ rotate: 0 })}>
+                    Reset tilt
+                  </button>
+                )}
+                {edit.removeBg && !edit.level && LEVEL_SHOTS.has(photo.slot) && <small className="muted">Auto-level is off for this photo.</small>}
+              </div>
               <div className="row wrap">
                 <Toggle label="Enhance" checked={edit.enhance} onChange={(b) => upd({ enhance: b })} />
                 <Toggle label="Logo" checked={edit.watermark} disabled={!settings.logo} onChange={(b) => upd({ watermark: b })} />

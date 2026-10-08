@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { FileButton, Header, QueueBadge, useToast } from "../components";
+import { BackdropThumb, FileButton, Header, QueueBadge, Segmented, Toggle, useToast } from "../components";
 import { go, useBlobUrl, useLive } from "../hooks";
-import { deleteVehicle, getVehicle, listPhotos, putVehicle } from "../lib/db";
+import { deleteVehicle, getSettings, getVehicle, listPhotos, putVehicle, saveSettings } from "../lib/db";
+import { allBackdrops } from "../lib/backgrounds";
 import { download, exportFiles, shareFiles, zipFor, baseName } from "../lib/export";
-import { addBatch, addPhotos } from "../lib/photos";
+import { addBatch, addPhotos, applyLook } from "../lib/photos";
 import { enqueue } from "../lib/process";
 import { SHOTS } from "../lib/shots";
-import type { Photo, Vehicle } from "../lib/types";
+import type { LogoPos, Photo, Settings, Vehicle } from "../lib/types";
 import { barcodeSupported, decodeVin, normaliseVin, scanVin, vinCheck } from "../lib/vin";
 import { vehicleTitle } from "./VehicleList";
 
@@ -39,9 +40,17 @@ function Details({ v, toast }: { v: Vehicle; toast: (m: string) => void }) {
       const next = { ...f, vin, year: f.year || info.year, make: f.make || info.make, model: f.model || info.model, variant: f.variant || info.variant };
       setF(next);
       await save(next);
-      toast(info.make ? `Decoded: ${[info.year, info.make, info.model].filter(Boolean).join(" ")}` : "Decoder had nothing for that VIN. Enter details by hand.");
+      const got = [info.year, info.make, info.model].filter(Boolean).join(" ");
+      const built = info.country ? `, built in ${info.country}` : "";
+      toast(
+        !info.make
+          ? "Unknown manufacturer code. Enter details by hand."
+          : info.modelFound
+            ? `Decoded: ${got}${built}`
+            : `${got}${built}. Model isn't in the free decoder for this car; enter it or import it from your stock list.`,
+      );
     } catch {
-      toast("Couldn't reach the VIN decoder. Enter details by hand.");
+      toast("Couldn't decode that VIN. Enter details by hand.");
     } finally {
       setBusy(false);
     }
@@ -109,8 +118,61 @@ function Details({ v, toast }: { v: Vehicle; toast: (m: string) => void }) {
           Colour
           <input value={f.colour} onChange={set("colour")} onBlur={() => save()} />
         </label>
+        <label>
+          Rego
+          <input value={f.rego ?? ""} onChange={(e) => setF({ ...f, rego: e.target.value.toUpperCase() })} onBlur={() => save()} autoCapitalize="characters" />
+        </label>
       </div>
     </details>
+  );
+}
+
+/** Backdrop and logo for the whole vehicle. Each photo can still be changed in the editor. */
+function Look({ v, settings, count, toast }: { v: Vehicle; settings: Settings; count: number; toast: (m: string) => void }) {
+  const backdrops = useLive(allBackdrops, []);
+  const logoUrl = useBlobUrl(settings.logo);
+  const look = v.look ?? { background: settings.defaultBackground, watermark: settings.watermarkDefault };
+  const set = async (patch: Partial<typeof look>, apply = true) => {
+    const next = { ...look, ...patch };
+    await putVehicle({ ...v, look: next });
+    if (apply && count) {
+      await applyLook(v, next);
+      toast(`Updating ${count} photo${count === 1 ? "" : "s"}…`);
+    }
+  };
+  const saveLogo = async (patch: Partial<Settings>) => {
+    await saveSettings({ ...(await getSettings()), ...patch });
+    if (count) await applyLook(v, { ...look, watermark: patch.logo ? true : look.watermark });
+  };
+  return (
+    <section className="card">
+      <h2>Showroom</h2>
+      <div className="bds">
+        {backdrops?.map((bd) => (
+          <BackdropThumb key={bd.id} bd={bd} on={bd.id === look.background} onPick={() => set({ background: bd.id })} />
+        ))}
+      </div>
+      <div className="row wrap">
+        {logoUrl && <img className="logo-prev" src={logoUrl} alt="Logo" />}
+        <FileButton className="btn small" accept="image/png,image/svg+xml,image/webp,image/jpeg" onFiles={async (f) => { await saveLogo({ logo: f[0] }); await set({ watermark: true }, false); }}>
+          {settings.logo ? "Change logo" : "Load logo"}
+        </FileButton>
+        <Toggle label="Logo on photos" checked={look.watermark && !!settings.logo} disabled={!settings.logo} onChange={(b) => set({ watermark: b })} />
+      </div>
+      {settings.logo && (
+        <Segmented<LogoPos>
+          value={settings.logoPos ?? "top-right"}
+          onChange={(logoPos) => saveLogo({ logoPos })}
+          options={[
+            ["top-left", "Top left"],
+            ["top-right", "Top right"],
+            ["bottom-left", "Bottom left"],
+            ["bottom-right", "Bottom right"],
+          ]}
+        />
+      )}
+      <p className="muted small">Applies to every photo of this car. Open a photo to change it on its own.</p>
+    </section>
   );
 }
 
@@ -132,11 +194,11 @@ function EmptySlot({ vehicleId, id, label, hint }: { vehicleId: string; id: stri
 }
 
 export default function VehicleDetail({ id }: { id: string }) {
-  const data = useLive(async () => ({ v: await getVehicle(id), photos: await listPhotos(id) }), [id]);
+  const data = useLive(async () => ({ v: await getVehicle(id), photos: await listPhotos(id), settings: await getSettings() }), [id]);
   const [toastEl, toast] = useToast();
   const [busy, setBusy] = useState("");
   if (!data) return null;
-  const { v, photos } = data;
+  const { v, photos, settings } = data;
   if (!v)
     return (
       <div className="page">
@@ -172,6 +234,7 @@ export default function VehicleDetail({ id }: { id: string }) {
       <Header title={vehicleTitle(v)} back="/" right={<QueueBadge />} />
       <main>
         <Details v={v} toast={toast} />
+        <Look v={v} settings={settings} count={photos.length} toast={toast} />
 
         <div className="row wrap">
           <FileButton multiple className="btn" onFiles={(f) => addBatch(v.id, f)}>

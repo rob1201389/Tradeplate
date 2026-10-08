@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { onQueue, queueState } from "./lib/process";
+import { renderBackdrop, type Backdrop } from "./lib/backgrounds";
 
 export function Header({ title, back, right }: { title: ReactNode; back?: string; right?: ReactNode }) {
   return (
@@ -88,4 +89,24 @@ export function useToast(): [ReactNode, (msg: string) => void] {
     return () => clearTimeout(t);
   }, [msg]);
   return [msg ? <div className="toast">{msg}</div> : null, setMsg];
+}
+
+export function BackdropThumb({ bd, on, onPick }: { bd: Backdrop; on: boolean; onPick: () => void }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    let u: string | undefined;
+    renderBackdrop(bd.id, 160, 120).then(async ({ canvas }) => {
+      u = URL.createObjectURL(await canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 }));
+      setUrl(u);
+    });
+    return () => {
+      if (u) URL.revokeObjectURL(u);
+    };
+  }, [bd.id]);
+  return (
+    <button type="button" className={`bd${on ? " on" : ""}`} onClick={onPick} title={bd.name}>
+      {url && <img src={url} alt="" />}
+      <span>{bd.name}</span>
+    </button>
+  );
 }

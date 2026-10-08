@@ -53,9 +53,14 @@ export default function VehicleList() {
         }
       />
       <main>
-        <button className="btn primary block" onClick={create}>
-          + New vehicle
-        </button>
+        <div className="row">
+          <button className="btn primary" style={{ flex: 1 }} onClick={create}>
+            + New vehicle
+          </button>
+          <a className="btn" href="#/import">
+            Import stock
+          </a>
+        </div>
         {vehicles?.length === 0 && (
           <div className="empty">
             <p>Add a vehicle, shoot the walk-around, and the app cuts each car out and stages it on a studio backdrop.</p>

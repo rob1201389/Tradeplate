@@ -18,14 +18,30 @@ no accounts and no cloud database. Export gets the files out.
 
 ## What it does
 
-- **Vehicle records**: stock number, VIN, year, make, model, variant, colour.
-  VIN can be read from the barcode on the door-jamb sticker (Android Chrome)
-  and decoded through the free NHTSA decoder. That decoder is reliable on make
-  and year, patchy on model for Australian-delivered cars, so check it.
-- **Shot list**: 13 standard angles in listing order (front 3/4 first, since
+- **Vehicle records**: stock number, VIN, rego, year, make, model, variant,
+  colour. VIN can be read from the barcode on the door-jamb sticker (Android
+  Chrome). The VIN decoder gives make and country of build offline for any
+  car, the year where the VIN reliably holds it (not Japanese, Thai or
+  Australian-built cars), and model only where the free US database knows the
+  car, which misses most Australian-delivered stock. For models, import the
+  stock list instead.
+- **Stock import**: CSV or Excel export from the DMS, mapped by column heading
+  (handles Toyota-style "Vehicle Description" / "Colour Description" / "V.I.N."
+  layouts, strips model and suffix codes, ignores interior trim). Or a
+  screenshot of a stock list: read on the phone, columns placed by the heading
+  row, VIN misreads repaired with the check digit where only one fix fits,
+  anything doubtful outlined in red. Rows are shown for checking before saving;
+  existing vehicles are matched on VIN or stock number and updated.
+- **Shot list**: 21 standard angles in listing order (front 3/4 first, since
   classifieds use photo one as the hero) with a framing hint for each, plus
   unlimited extras. "Add many photos" drops a camera-roll batch into the empty
-  slots in order.
+  slots in order. Any photo can be moved to another shot from the editor
+  (swaps if the shot is taken). Close-ups put in an exterior slot (a mirror, a
+  wheel) are detected and left as shot rather than staged.
+- **Showroom per vehicle**: backdrop and logo chosen once on the vehicle screen
+  apply to every photo; each photo can still be changed in the editor.
+- **Straighten**: side, front and rear shots are levelled automatically from
+  the tyres; a tilt slider covers the rest.
 - **Cut-out and staging**: BiRefNet lite segmentation, stray-blob cleanup,
   auto fit, contact and ambient shadow, optional floor reflection.
 - **Backdrops**: six built in (drawn in code, so no image licences), plus your
@@ -35,7 +51,8 @@ no accounts and no cloud database. Export gets the files out.
   artwork) or pixelate it. Placement is manual for now.
 - **Enhance**: luminance levels and gamma from the car's own pixels, slight
   saturation lift. One curve for all channels so paint colour doesn't shift.
-- **Logo** watermark, output size, aspect (4:3, 3:2, 16:9, 1:1), JPEG quality.
+- **Logo**: load it from the vehicle screen or Settings; top-right by default
+  (any corner), on every photo once loaded. Output size, aspect (4:3, 3:2, 16:9, 1:1), JPEG quality.
 - **Export**: ZIP download named `<stock>_<nn>_<angle>.jpg`, or the phone's
   share sheet.
 

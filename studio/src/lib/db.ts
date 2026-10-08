@@ -91,8 +91,9 @@ export const DEFAULT_SETTINGS: Settings = {
   plateBg: "#ffffff",
   plateFg: "#111418",
   defaultPlateMode: "none",
-  watermarkDefault: false,
-  watermarkSize: 0.14,
+  watermarkDefault: true,
+  watermarkSize: 0.16,
+  logoPos: "top-right",
 };
 
 export async function getSettings(): Promise<Settings> {

@@ -129,11 +129,20 @@ export async function segment(photo: Blob, s: Settings): Promise<Blob> {
   const small = await downscale(photo, SEG_EDGE);
   const engine = await resolveEngine(s);
   let mask: Mask;
+  let viaServer: Mask | null = null;
   if (engine.kind === "server") {
-    const r = await fetch(`${engine.base}/api/mask`, { method: "POST", body: small, headers: { "Content-Type": "image/jpeg", ...(s.serverKey ? { Authorization: `Bearer ${s.serverKey}` } : {}) } });
-    if (!r.ok) throw new Error(`Server: ${r.status} ${await r.text()}`);
-    mask = await pngToMask(await r.blob());
-  } else {
+    try {
+      const r = await fetch(`${engine.base}/api/mask`, { method: "POST", body: small, headers: { "Content-Type": "image/jpeg", ...(s.serverKey ? { Authorization: `Bearer ${s.serverKey}` } : {}) } });
+      if (!r.ok) throw new Error(`Server: ${r.status} ${await r.text()}`);
+      viaServer = await pngToMask(await r.blob());
+    } catch (e) {
+      // In Auto, a server that has gone away shouldn't stop work: use the phone instead.
+      if (s.engine === "server") throw e;
+      sameOriginServer = null;
+    }
+  }
+  if (viaServer) mask = viaServer;
+  else {
     const m = await call("mask", small);
     mask = { width: m.width, height: m.height, data: m.data };
   }
